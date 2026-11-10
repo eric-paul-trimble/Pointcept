@@ -102,7 +102,7 @@ def _lovasz_softmax(
         loss = mean(
             _lovasz_softmax_flat(
                 *_flatten_probas(prob.unsqueeze(0), lab.unsqueeze(0), ignore),
-                classes=classes
+                classes=classes,
             )
             for prob, lab in zip(probas, labels)
         )
@@ -110,7 +110,7 @@ def _lovasz_softmax(
         loss = _lovasz_softmax_flat(
             *_flatten_probas(probas, labels, ignore),
             classes=classes,
-            class_seen=class_seen
+            class_seen=class_seen,
         )
     return loss
 

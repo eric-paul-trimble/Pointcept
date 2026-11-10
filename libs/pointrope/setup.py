@@ -28,7 +28,6 @@ else:
     nvcc_args = ["-O3", "--ptxas-options=-v", "--use_fast_math"] + all_cuda_archs
 
 setup(
-    name="pointrope",
     ext_modules=[
         CUDAExtension(
             name="pointrope",

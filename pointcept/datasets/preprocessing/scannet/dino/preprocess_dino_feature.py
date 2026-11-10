@@ -12,7 +12,7 @@ import zlib
 import imageio
 import struct
 import numpy as np
-import torch_scatter
+from pyg_lib import ops as pyg_ops
 from pathlib import Path
 
 
@@ -260,15 +260,9 @@ def parsing_scene(
             grid_coord, cluster = torch.unique(
                 grid_coord, sorted=True, return_inverse=True, dim=0
             )
-            scene_coord = [
-                torch_scatter.scatter(scene_coord, cluster, reduce="mean", dim=0)
-            ]
-            scene_feat = [
-                torch_scatter.scatter(scene_feat, cluster, reduce="sum", dim=0)
-            ]
-            scene_count = [
-                torch_scatter.scatter(scene_count, cluster, reduce="sum", dim=0)
-            ]
+            scene_coord = [pyg_ops.scatter(scene_coord, cluster, reduce="mean", dim=0)]
+            scene_feat = [pyg_ops.scatter(scene_feat, cluster, reduce="sum", dim=0)]
+            scene_count = [pyg_ops.scatter(scene_count, cluster, reduce="sum", dim=0)]
 
         # color = color.reshape((-1, 3))[valid]
         # pcd = o3d.geometry.PointCloud()

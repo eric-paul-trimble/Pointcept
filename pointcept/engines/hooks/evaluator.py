@@ -14,6 +14,7 @@ from uuid import uuid4
 
 import pointcept.utils.comm as comm
 from pointcept.utils.misc import intersection_and_union_gpu
+from pointcept.utils.linnet import prepare_linnet_input
 
 from .default import HookBase
 from .builder import HOOKS
@@ -38,6 +39,7 @@ class ClsEvaluator(HookBase):
             for key in input_dict.keys():
                 if isinstance(input_dict[key], torch.Tensor):
                     input_dict[key] = input_dict[key].cuda(non_blocking=True)
+            input_dict = prepare_linnet_input(input_dict, self.trainer.cfg.model)
             with torch.no_grad():
                 output_dict = self.trainer.model(input_dict)
             output = output_dict["cls_logits"]
@@ -174,6 +176,7 @@ class SemSegEvaluator(HookBase):
             for key in input_dict.keys():
                 if isinstance(input_dict[key], torch.Tensor):
                     input_dict[key] = input_dict[key].cuda(non_blocking=True)
+            input_dict = prepare_linnet_input(input_dict, self.trainer.cfg.model)
             with torch.no_grad():
                 output_dict = self.trainer.model(input_dict)
             output = output_dict["seg_logits"]

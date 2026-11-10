@@ -31,6 +31,84 @@ from .builder import HOOKS
 
 
 @HOOKS.register_module()
+class ModelEMA(HookBase):
+    """Maintain an exponential moving average of model parameters."""
+
+    def __init__(self, decay: float = 0.999):
+        self.decay = decay
+        self.ema = None
+        self.backup = None
+
+    def _update(self):
+        state = self.trainer.model.state_dict()
+        if self.ema is None:
+            self.ema = {key: value.detach().clone() for key, value in state.items()}
+            return
+
+        for key, value in state.items():
+            if torch.is_floating_point(value):
+                self.ema[key].mul_(self.decay).add_(
+                    value.detach(), alpha=1.0 - self.decay
+                )
+            else:
+                self.ema[key].copy_(value.detach())
+
+    def after_step(self):
+        self._update()
+
+    def after_epoch(self):
+        if self.ema is None:
+            return
+
+        model = self.trainer.model
+        self.backup = {
+            key: value.detach().clone() for key, value in model.state_dict().items()
+        }
+        model.load_state_dict(self.ema, strict=True)
+
+    def before_epoch(self):
+        if self.backup is None:
+            return
+
+        self.trainer.model.load_state_dict(self.backup, strict=True)
+        self.backup = None
+
+
+@HOOKS.register_module()
+class FreezeUnfreeze(HookBase):
+    """Freeze selected parameters for an initial number of training epochs."""
+
+    def __init__(self, keywords: str | list[str], freeze_epochs: int):
+        self.keywords = (
+            list(keywords) if isinstance(keywords, (list, tuple)) else [keywords]
+        )
+        self.freeze_epochs = freeze_epochs
+        self._frozen = None
+
+    def _apply(self, frozen: bool):
+        if self._frozen == frozen:
+            return
+
+        count = 0
+        for name, parameter in self.trainer.model.named_parameters():
+            if any(keyword in name for keyword in self.keywords):
+                parameter.requires_grad_(not frozen)
+                count += 1
+        self._frozen = frozen
+        state = "Froze" if frozen else "Unfroze"
+        self.trainer.logger.info(
+            f"[FreezeUnfreeze] {state} {count} params matching {self.keywords} "
+            f"(epoch {self.trainer.epoch}, freeze_epochs={self.freeze_epochs})"
+        )
+
+    def before_train(self):
+        self._apply(self.trainer.epoch < self.freeze_epochs)
+
+    def before_epoch(self):
+        self._apply(self.trainer.epoch < self.freeze_epochs)
+
+
+@HOOKS.register_module()
 class IterationTimer(HookBase):
     def __init__(self, warmup_iter=1):
         self._warmup_iter = warmup_iter

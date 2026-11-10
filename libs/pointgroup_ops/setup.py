@@ -45,9 +45,6 @@ if not (INCLUDE_DIRS is False):
     include_dirs += INCLUDE_DIRS
 
 setup(
-    name="pointgroup_ops",
-    packages=["pointgroup_ops"],
-    package_dir={"pointgroup_ops": "functions"},
     ext_modules=[
         CUDAExtension(
             name="pointgroup_ops_cuda",

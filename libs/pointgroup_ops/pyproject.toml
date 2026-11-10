@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pointgroup_ops"
+version = "0.1.0"
+
+[tool.setuptools]
+packages = ["pointgroup_ops"]
+
+[tool.setuptools.package-dir]
+pointgroup_ops = "functions"

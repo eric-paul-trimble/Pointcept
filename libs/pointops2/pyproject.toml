@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pointops2"
+version = "0.1.0"
+dependencies = [
+    "numpy",
+    "torch",
+]
+
+[tool.setuptools]
+packages = ["pointops2"]
+
+[tool.setuptools.package-dir]
+pointops2 = "functions"

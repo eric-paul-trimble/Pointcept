@@ -1,6 +1,6 @@
 import sys
 import torch.nn as nn
-import spconv.pytorch as spconv
+import spconv_triton.pytorch as spconv
 
 try:
     import ocnn

@@ -112,6 +112,36 @@ class Update(object):
 
 
 @TRANSFORMS.register_module()
+class Add:
+    """Add constant values to a sample dictionary."""
+
+    def __init__(self, keys_dict: dict | None = None):
+        self.keys_dict = {} if keys_dict is None else keys_dict
+
+    def __call__(self, data_dict: dict) -> dict:
+        data_dict.update(self.keys_dict)
+        return data_dict
+
+
+@TRANSFORMS.register_module()
+class GridCoord:
+    """Attach integer voxel coordinates without changing the point count."""
+
+    def __init__(self, grid_size: float = 0.05, key: str = "grid_coord"):
+        self.grid_size = grid_size
+        self.key = key
+
+    def __call__(self, data_dict: dict) -> dict:
+        if "coord" not in data_dict:
+            raise KeyError("GridCoord requires 'coord' in the sample")
+        coord = np.asarray(data_dict["coord"])
+        grid_coord = np.floor(coord / self.grid_size).astype(np.int64)
+        grid_coord -= grid_coord.min(axis=0, keepdims=True)
+        data_dict[self.key] = grid_coord
+        return data_dict
+
+
+@TRANSFORMS.register_module()
 class ToTensor(object):
     def __call__(self, data):
         if isinstance(data, torch.Tensor):

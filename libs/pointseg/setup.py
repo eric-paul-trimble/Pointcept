@@ -17,11 +17,6 @@ sources = [
 ]
 
 setup(
-    name="pointseg",
-    version="1.0",
-    install_requires=["torch"],
-    packages=["pointseg"],
-    package_dir={"pointseg": "pointseg"},
     ext_modules=[
         CppExtension(
             name="pointseg._C",

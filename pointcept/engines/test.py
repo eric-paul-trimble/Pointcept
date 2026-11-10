@@ -19,6 +19,7 @@ import torch.utils.data
 from .defaults import create_ddp_model
 import pointcept.utils.comm as comm
 from pointcept.datasets import build_dataset, collate_fn
+from pointcept.utils.linnet import prepare_linnet_input
 from pointcept.models import build_model
 from pointcept.utils.logger import get_root_logger
 from pointcept.utils.registry import Registry
@@ -192,6 +193,7 @@ class SemSegTester(TesterBase):
                     for key in input_dict.keys():
                         if isinstance(input_dict[key], torch.Tensor):
                             input_dict[key] = input_dict[key].cuda(non_blocking=True)
+                    input_dict = prepare_linnet_input(input_dict, self.cfg.model)
                     idx_part = input_dict["index"]
                     with torch.no_grad():
                         pred_part = self.model(input_dict)["seg_logits"]  # (n, k)
@@ -625,6 +627,7 @@ class ClsTester(TesterBase):
             for key in input_dict.keys():
                 if isinstance(input_dict[key], torch.Tensor):
                     input_dict[key] = input_dict[key].cuda(non_blocking=True)
+            input_dict = prepare_linnet_input(input_dict, self.cfg.model)
             end = time.time()
             with torch.no_grad():
                 output_dict = self.model(input_dict)
@@ -881,6 +884,7 @@ class ShapeNetPartSegTester(TesterBase):
                     for key in input_dict.keys():
                         if isinstance(input_dict[key], torch.Tensor):
                             input_dict[key] = input_dict[key].cuda(non_blocking=True)
+                    input_dict = prepare_linnet_input(input_dict, self.cfg.model)
                     idx_part = input_dict["index"]
                     with torch.no_grad():
                         pred_part = self.model(input_dict)["seg_logits"]  # (n, k)
@@ -1038,6 +1042,7 @@ class PartNetEPartSegTester(TesterBase):
                     for key in input_dict.keys():
                         if isinstance(input_dict[key], torch.Tensor):
                             input_dict[key] = input_dict[key].cuda(non_blocking=True)
+                    input_dict = prepare_linnet_input(input_dict, self.cfg.model)
                     idx_part = input_dict["index"]
                     with torch.no_grad():
                         pred_part = self.model(input_dict)["seg_logits"]  # (n, k)

@@ -10,8 +10,8 @@ from addict import Dict
 import math
 import torch
 import torch.nn as nn
-import spconv.pytorch as spconv
-import torch_scatter
+import spconv_triton.pytorch as spconv
+from pyg_lib import ops as pyg_ops
 from timm.layers import DropPath
 
 try:
@@ -395,9 +395,9 @@ class SerializedPooling(PointModule):
             return_inverse=True,
             return_counts=True,
         )
-        # indices of point sorted by cluster, for torch_scatter.segment_csr
+        # indices of point sorted by cluster, for pyg_lib.ops.segment_csr
         _, indices = torch.sort(cluster)
-        # index pointer for sorted point, for torch_scatter.segment_csr
+        # index pointer for sorted point, for pyg_lib.ops.segment_csr
         idx_ptr = torch.cat([counts.new_zeros(1), torch.cumsum(counts, dim=0)])
         # head_indices of each cluster, for reduce attr e.g. code, batch
         head_indices = indices[idx_ptr[:-1]]
@@ -420,12 +420,10 @@ class SerializedPooling(PointModule):
 
         # collect information
         point_dict = Dict(
-            feat=torch_scatter.segment_csr(
+            feat=pyg_ops.segment_csr(
                 self.proj(point.feat)[indices], idx_ptr, reduce=self.reduce
             ),
-            coord=torch_scatter.segment_csr(
-                point.coord[indices], idx_ptr, reduce="mean"
-            ),
+            coord=pyg_ops.segment_csr(point.coord[indices], idx_ptr, reduce="mean"),
             grid_coord=point.grid_coord[head_indices] >> pooling_depth,
             serialized_code=code,
             serialized_order=order,
@@ -713,7 +711,7 @@ class PointTransformerV3(PointModule):
         if not self.enc_mode:
             point = self.dec(point)
         # else:
-        #     point.feat = torch_scatter.segment_csr(
+        #     point.feat = pyg_lib.ops.segment_csr(
         #         src=point.feat,
         #         indptr=nn.functional.pad(point.offset, (1, 0)),
         #         reduce="mean",

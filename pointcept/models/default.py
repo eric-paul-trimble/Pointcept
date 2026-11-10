@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
-import torch_scatter
-import torch_cluster
+import torch.nn.functional as F
+from pyg_lib import ops as pyg_ops
 from peft import LoraConfig, get_peft_model
 from collections import OrderedDict
 
 from pointcept.models.losses import build_criteria
 from pointcept.models.utils.structure import Point
 from pointcept.models.utils import offset2batch
+from pointcept.utils.linnet import prepare_linnet_input
 from .builder import MODELS, build_model
 
 
@@ -35,6 +36,186 @@ class DefaultSegmentor(nn.Module):
         # test
         else:
             return dict(seg_logits=seg_logits)
+
+
+@MODELS.register_module()
+class BoundarySegmentor(nn.Module):
+    """Train a segmentation backbone with an optional boundary auxiliary loss."""
+
+    def __init__(
+        self,
+        backbone=None,
+        criteria=None,
+        boundary_feat_channels=64,
+        boundary_loss_weight=0.3,
+        boundary_pos_weight=3.0,
+    ):
+        super().__init__()
+
+        self.backbone = build_model(backbone)
+        self.criteria = build_criteria(criteria)
+        self.boundary_head = nn.Linear(boundary_feat_channels, 2)
+        self.boundary_loss_weight = boundary_loss_weight
+        self.register_buffer(
+            "boundary_class_weights",
+            torch.tensor([1.0, float(boundary_pos_weight)]),
+        )
+
+    def forward(self, input_dict):
+        if "condition" in input_dict:
+            input_dict["condition"] = input_dict["condition"][0]
+        if self.training:
+            seg_logits, features = self.backbone(input_dict, return_feat=True)
+            loss = self.criteria(seg_logits, input_dict["segment"])
+            if "boundary" in input_dict:
+                boundary_logits = self.boundary_head(features)
+                boundary_loss = F.cross_entropy(
+                    boundary_logits,
+                    input_dict["boundary"].reshape(-1),
+                    weight=self.boundary_class_weights,
+                )
+                loss = loss + self.boundary_loss_weight * boundary_loss
+
+            return {"loss": loss}
+
+        seg_logits = self.backbone(input_dict)
+        if "segment" in input_dict:
+            loss = self.criteria(seg_logits, input_dict["segment"])
+            return {"loss": loss, "seg_logits": seg_logits}
+
+        return {"seg_logits": seg_logits}
+
+
+@MODELS.register_module()
+class DistillSegmentor(nn.Module):
+    """Train a student backbone with ground-truth and frozen-teacher targets."""
+
+    def __init__(
+        self,
+        backbone,
+        teacher,
+        teacher_weight,
+        distill_in_channels,
+        num_classes,
+        criteria=None,
+        distill_loss_weight=0.5,
+        teacher_strict=True,
+        teacher_out_channels=None,
+    ):
+        super().__init__()
+
+        self.backbone = build_model(backbone)
+        self.criteria = build_criteria(criteria)
+        self.seg_head = nn.Linear(distill_in_channels, num_classes)
+        self.distill_head = nn.Linear(distill_in_channels, num_classes)
+        self.distill_loss_weight = distill_loss_weight
+        self.teacher_config = teacher
+        self.teacher = build_model(teacher)
+        self.teacher_head = (
+            nn.Sequential(
+                nn.BatchNorm1d(teacher_out_channels, momentum=0.02),
+                nn.ReLU(),
+                nn.Linear(teacher_out_channels, num_classes),
+            )
+            if teacher_out_channels is not None
+            else None
+        )
+        self._load_teacher(teacher_weight, strict=teacher_strict)
+        self.teacher.requires_grad_(False)
+        if self.teacher_head is not None:
+            self.teacher_head.requires_grad_(False)
+        self.teacher.eval()
+
+    def _load_teacher(self, path, strict=True):
+        if not path:
+            raise ValueError("teacher_weight is required")
+        checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+        state_dict = checkpoint.get("state_dict", checkpoint)
+        if not isinstance(state_dict, dict):
+            raise TypeError("teacher checkpoint must contain a state dict")
+        normalized = {}
+        for key, value in state_dict.items():
+            key = key.removeprefix("module.")
+            key = key.removeprefix("backbone.")
+            normalized[key] = value
+        if self.teacher_head is None:
+            self.teacher.load_state_dict(normalized, strict=strict)
+            return
+
+        backbone_state = {}
+        teacher_head_state = {}
+        for key, value in normalized.items():
+            if key.startswith("head."):
+                teacher_head_state[f"teacher_head.{key.removeprefix('head.')}"] = value
+            else:
+                backbone_state[key] = value
+        self.teacher.load_state_dict(backbone_state, strict=False)
+        if teacher_head_state:
+            self.load_state_dict(teacher_head_state, strict=False)
+
+    @staticmethod
+    def _logits(output):
+        if isinstance(output, dict):
+            return output["seg_logits"]
+
+        return output
+
+    @staticmethod
+    def _features(output):
+        if isinstance(output, tuple):
+            return output[-1]
+
+        return output
+
+    def load_state_dict(self, state_dict, strict=True, **kwargs):
+        """Load legacy checkpoints whose segmentation head lived in Volt."""
+        state_dict = dict(state_dict)
+        for suffix in ("weight", "bias"):
+            legacy_key = f"backbone.seg_head.{suffix}"
+            current_key = f"seg_head.{suffix}"
+            if current_key not in state_dict and legacy_key in state_dict:
+                state_dict[current_key] = state_dict[legacy_key]
+            state_dict.pop(legacy_key, None)
+
+        return super().load_state_dict(state_dict, strict=strict, **kwargs)
+
+    def train(self, mode=True):
+        super().train(mode)
+        self.teacher.eval()
+        if self.teacher_head is not None:
+            self.teacher_head.eval()
+
+        return self
+
+    def forward(self, input_dict):
+        if "condition" in input_dict:
+            input_dict["condition"] = input_dict["condition"][0]
+
+        if self.training:
+            student_features = self._features(self.backbone(input_dict))
+            student_logits = self.seg_head(student_features)
+            distill_logits = self.distill_head(student_features)
+            with torch.inference_mode():
+                teacher_input = prepare_linnet_input(input_dict, self.teacher_config)
+                teacher_output = self.teacher(teacher_input)
+                teacher_logits = (
+                    self.teacher_head(self._features(teacher_output))
+                    if self.teacher_head is not None
+                    else self._logits(teacher_output)
+                )
+            loss_seg = self.criteria(student_logits, input_dict["segment"])
+            loss_distill = self.criteria(distill_logits, teacher_logits.argmax(-1))
+            weight = self.distill_loss_weight
+            return {
+                "loss": (1.0 - weight) * loss_seg + weight * loss_distill,
+            }
+
+        seg_logits = self.seg_head(self._features(self.backbone(input_dict)))
+        if "segment" in input_dict:
+            loss = self.criteria(seg_logits, input_dict["segment"])
+            return {"loss": loss, "seg_logits": seg_logits}
+
+        return {"seg_logits": seg_logits}
 
 
 @MODELS.register_module()
@@ -256,11 +437,11 @@ class DINOEnhancedSegmentor(nn.Module):
         dino_coord = input_dict["dino_coord"]
         dino_feat = input_dict["dino_feat"]
         dino_offset = input_dict["dino_offset"]
-        idx = torch_cluster.knn(
+        idx = pyg_ops.knn(
             x=dino_coord,
             y=point.origin_coord,
-            batch_x=offset2batch(dino_offset),
-            batch_y=offset2batch(point.origin_offset),
+            ptr_x=dino_offset,
+            ptr_y=point.origin_offset,
             k=1,
         )[1]
 
@@ -329,7 +510,7 @@ class DefaultClassifier(nn.Module):
         # And after v1.5.0 feature aggregation for classification operated in classifier
         # TODO: remove this part after make all backbone return Point only.
         if isinstance(point, Point):
-            point.feat = torch_scatter.segment_csr(
+            point.feat = pyg_ops.segment_csr(
                 src=point.feat,
                 indptr=nn.functional.pad(point.offset, (1, 0)),
                 reduce="mean",

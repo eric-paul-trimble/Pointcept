@@ -1,12 +1,6 @@
 import torch
 import pointops
-from torch_scatter import (
-    scatter_max,
-    scatter_mean,
-    scatter_add,
-    scatter_min,
-    scatter_sum,
-)
+import pyg_lib.ops as pyg_ops
 
 torch.manual_seed(1)
 
@@ -51,7 +45,7 @@ rel_pos_encoding = (
 )  # [M, h, hdim]
 v_flat_new = v_flat + rel_pos_encoding  # [M, h, hdim]
 output = attn.unsqueeze(-1) * v_flat_new  # [M, h, hdim]
-output = scatter_sum(src=output, index=index_0, dim=0, dim_size=N)  # [N, h, hdim]
+output = pyg_ops.segment_sum(output, index_0, dim=0, dim_size=N)  # [N, h, hdim]
 loss = output.mean()
 loss.backward()
 

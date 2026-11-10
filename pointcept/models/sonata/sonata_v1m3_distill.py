@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
-import torch_scatter
+from pyg_lib import ops as pyg_ops
 from timm.layers import trunc_normal_
 
 import pointops
@@ -332,7 +332,7 @@ class Sonata(PointModel):
         mask_ratio = self.mask_ratio
 
         # Grouping points with grid patch
-        min_coord = torch_scatter.segment_coo(coord, batch, reduce="min")
+        min_coord = pyg_ops.segment_coo(coord, batch, reduce="min")
         grid_coord = ((coord - min_coord[batch]) // mask_size).int()
         grid_coord = torch.cat([batch.unsqueeze(-1), grid_coord], dim=-1)
         unique, point_cluster, counts = torch.unique(
@@ -483,7 +483,7 @@ class Sonata(PointModel):
                     ),
                     dim=-1,
                 )
-                mask_loss = torch_scatter.segment_coo(
+                mask_loss = pyg_ops.segment_coo(
                     mask_loss,
                     index=mask_global_point_.batch[match_index[:, 0]],
                     reduce="mean",
@@ -514,7 +514,7 @@ class Sonata(PointModel):
                     ),
                     dim=-1,
                 )
-                roll_mask_loss = torch_scatter.segment_coo(
+                roll_mask_loss = pyg_ops.segment_coo(
                     roll_mask_loss,
                     index=mask_global_point_.batch[match_index[:, 0]],
                     reduce="mean",
@@ -550,7 +550,7 @@ class Sonata(PointModel):
                 ),
                 dim=-1,
             )
-            unmask_loss = torch_scatter.segment_coo(
+            unmask_loss = pyg_ops.segment_coo(
                 unmask_loss,
                 index=local_point_.batch[match_index[:, 0]],
                 reduce="mean",

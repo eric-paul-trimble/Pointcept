@@ -18,11 +18,6 @@ sources = [
 ]
 
 setup(
-    name="pointops2",
-    version="1.0",
-    install_requires=["torch", "numpy"],
-    packages=["pointops2"],
-    package_dir={"pointops2": "functions"},
     ext_modules=[
         CUDAExtension(
             name="pointops2_cuda",

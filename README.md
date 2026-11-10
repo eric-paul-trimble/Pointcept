@@ -84,7 +84,9 @@ Backbone:
 [StratifiedFormer](https://github.com/dvlab-research/Stratified-Transformer) ([here](#stratified-transformer)),
 [OctFormer](https://github.com/octree-nn/octformer) ([here](#octformer)),
 [Swin3D](https://github.com/microsoft/Swin3D) ([here](#swin3d)),
-[LitePT](https://github.com/prs-eth/LitePT) ([here](#litept));   
+[LitePT](https://github.com/prs-eth/LitePT) ([here](#litept)),
+[LinNet](https://github.com/DengH293/LinNet),
+[Volt](https://yilmazkadir.github.io/Volt/); 
 Semantic Segmentation:
 [Mix3d](https://github.com/kumuji/mix3d) ([here](https://github.com/Pointcept/Pointcept/blob/main/configs/scannet/semseg-spunet-v1m1-0-base.py#L5)),
 [CAC](https://arxiv.org/abs/2303.11633) ([here](#context-aware-classifier));  
@@ -150,6 +152,20 @@ If you find _Pointcept_ useful to your research, please cite our work as encoura
 - [Quick Start](#quick-start)
 - [Model Zoo](#model-zoo)
 - [Acknowledgement](#acknowledgement)
+
+## Fork extensions
+
+This repository is maintained as a small Pointcept fork. The fork keeps the
+following reusable extensions:
+
+- **LinNet** and the `linnetops` CUDA extension for linear voxel queries.
+- **Volt**, a voxel-tokenized transformer backbone.
+- **PT-WNO**, a Point Transformer V3 backbone with a shared wavelet neural operator branch.
+- **Add** and **GridCoord** transforms for adding sample fields and attaching voxel coordinates without subsampling points.
+- **ModelEMA** and **FreezeUnfreeze** training hooks.
+- **BoundarySegmentor** and **DistillSegmentor** reusable segmentation wrappers.
+- **ConfusionMatrix** and related reusable classification metrics.
+
 
 ## Installation
 

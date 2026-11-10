@@ -34,6 +34,7 @@ from pointcept.utils.scheduler import build_scheduler
 from pointcept.utils.events import EventStorage, ExceptionWriter
 from pointcept.utils.registry import Registry
 from pointcept.datasets.dataloader import DistributedImbalancedSampler
+from pointcept.utils.linnet import prepare_linnet_input
 
 TRAINERS = Registry("trainers")
 AMP_DTYPE = dict(
@@ -194,6 +195,7 @@ class Trainer(TrainerBase):
             if isinstance(input_dict[key], torch.Tensor):
                 input_dict[key] = input_dict[key].cuda(non_blocking=True)
 
+        input_dict = prepare_linnet_input(input_dict, self.cfg.model)
         # Only clear gradients on first accumulation step
         if self._gradient_accumulation_counter == 0:
             self.optimizer.zero_grad()

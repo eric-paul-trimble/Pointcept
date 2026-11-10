@@ -13,7 +13,7 @@ except ImportError:
     KPConvLayer = None
     FastBatchNorm1d = None
 
-from torch_scatter import scatter_softmax
+from pyg_lib import ops as pyg_ops
 from timm.layers import DropPath, trunc_normal_
 from torch_geometric.nn.pool import voxel_grid
 
@@ -308,7 +308,7 @@ class WindowAttention(nn.Module):
 
         attn_flat = attn_flat + relative_position_bias  # [M, num_heads]
 
-        softmax_attn_flat = scatter_softmax(
+        softmax_attn_flat = pyg_ops.scatter_softmax(
             src=attn_flat, index=index_0, dim=0
         )  # [M, num_heads]
 

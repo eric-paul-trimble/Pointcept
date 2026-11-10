@@ -12,6 +12,8 @@ from .spvcnn import *
 from .octformer import *
 from .oacnns import *
 from .litept import *
+from .linnet import *
+from .volt import *
 
 # from .swin3d import *
 

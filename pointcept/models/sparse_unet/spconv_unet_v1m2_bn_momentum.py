@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 
 try:
-    import spconv.pytorch as spconv
+    import spconv_triton.pytorch as spconv
 except ImportError:
     import warnings
 

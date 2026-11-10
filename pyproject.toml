@@ -1,0 +1,132 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pointcept"
+version = "1.7.0"
+description = "A codebase for point cloud perception research"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+    "addict",
+    "camtools",
+    "einops",
+    "h5py",
+    "imageio",
+    "ninja",
+    "numpy",
+    "nuscenes-devkit",
+    "opencv-python",
+    "packaging",
+    "pandas",
+    "peft",
+    "pillow",
+    "plyfile",
+    "psutil",
+    "pyquaternion",
+    "regex",
+    "scipy",
+    "tensorboard",
+    "tensorboardX",
+    "termcolor",
+    "timm",
+    "torch-geometric",
+    "tqdm",
+    "transformers",
+    "trimesh",
+    "wandb",
+    "yapf",
+]
+
+[project.optional-dependencies]
+cpu = [
+    "open3d-cpu",
+    "pyg-lib>=0.7.0",
+    "torch-cluster>=1.6.3",
+    "torch-scatter>=2.1.2",
+    "torch-sparse>=0.6.18",
+    "torch>=2.11.0,<2.12.0",
+    "torchvision>=0.26.0,<0.27.0",
+]
+cuda = [
+    "linnetops",
+    "ocnn>=2.3.0",
+    "open3d",
+    "pointops",
+    "pointrope",
+    "pyg-lib>=0.7.0",
+    "spconv-triton>=0.1.0",
+    "torch-cluster>=1.6.3",
+    "torch-scatter>=2.1.2",
+    "torch-sparse>=0.6.18",
+    "torch>=2.11.0,<2.12.0",
+    "torchvision>=0.26.0,<0.27.0",
+]
+flash-attn = [
+    "flash-attn>=2.8.3"  # Use FLASH_ATTN_CUDA_ARCHS="120" and MAX_JOBS=4 to avoid OOM
+]
+
+[tool.uv]
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "cuda" },
+    ],
+    [
+        { extra = "cpu" },
+        { extra = "flash-attn" }
+    ],
+]
+
+[dependency-groups]
+dev = [
+    "black>=25.0.0"
+]
+
+[tool.uv.sources]
+linnetops = { path = "libs/linnetops", editable = true }
+pointops = { path = "libs/pointops", editable = true }
+pointops2 = { path = "libs/pointops2", editable = true }
+pointrope = { path = "libs/pointrope", editable = true }
+pyg-lib = [
+    { index = "pyg-cpu", extra = "cpu" },
+    { index = "pyg-cuda", extra = "cuda" },
+]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cuda", extra = "cuda" },
+]
+torch-cluster = [
+    { index = "pyg-cpu", extra = "cpu" },
+    { index = "pyg-cuda", extra = "cuda" },
+]
+torch-scatter = [
+    { index = "pyg-cpu", extra = "cpu" },
+    { index = "pyg-cuda", extra = "cuda" },
+]
+torch-sparse = [
+    { index = "pyg-cpu", extra = "cpu" },
+    { index = "pyg-cuda", extra = "cuda" },
+]
+torchvision = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cuda", extra = "cuda" },
+]
+
+[[tool.uv.index]]
+name = "pyg-cpu"
+url = "https://data.pyg.org/whl/torch-2.11.0+cpu.html"  # Keep in sync with torch and cuda
+format = "flat"
+explicit = true
+
+[[tool.uv.index]]
+name = "pyg-cuda"
+url = "https://data.pyg.org/whl/torch-2.11.0+cu128.html"  # Keep in sync with torch and cuda
+format = "flat"
+explicit = true
+
+[tool.setuptools.packages.find]
+include = ["pointcept*"]
