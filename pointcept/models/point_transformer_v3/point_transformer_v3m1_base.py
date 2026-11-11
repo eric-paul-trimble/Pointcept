@@ -11,8 +11,8 @@ import math
 import torch
 import torch.nn as nn
 import spconv_triton.pytorch as spconv
-from pyg_lib import ops as pyg_ops
 from timm.layers import DropPath
+from torch_geometric.utils import segment
 
 try:
     import flash_attn
@@ -21,7 +21,7 @@ except ImportError:
 
 from pointcept.models.point_prompt_training import PDNorm
 from pointcept.models.builder import MODELS
-from pointcept.models.utils.misc import offset2bincount
+from pointcept.utils.offset import offset2bincount
 from pointcept.models.utils.structure import Point
 from pointcept.models.modules import PointModule, PointSequential
 
@@ -420,10 +420,10 @@ class SerializedPooling(PointModule):
 
         # collect information
         point_dict = Dict(
-            feat=pyg_ops.segment_csr(
+            feat=segment(
                 self.proj(point.feat)[indices], idx_ptr, reduce=self.reduce
             ),
-            coord=pyg_ops.segment_csr(point.coord[indices], idx_ptr, reduce="mean"),
+            coord=segment(point.coord[indices], idx_ptr, reduce="mean"),
             grid_coord=point.grid_coord[head_indices] >> pooling_depth,
             serialized_code=code,
             serialized_order=order,

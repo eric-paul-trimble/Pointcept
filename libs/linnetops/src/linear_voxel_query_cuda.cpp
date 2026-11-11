@@ -7,7 +7,7 @@ void linear_voxel_query_cuda(int m, int nsample, int len_hash, float grid_size,
                              at::Tensor hashtable_tensor, at::Tensor xyz_tensor,
                              at::Tensor new_xyz_tensor, at::Tensor new_grid_id_tensor,
                              at::Tensor new_offset_tensor, at::Tensor idx_tensor,
-                             at::Tensor dist_tensor) {
+                             at::Tensor dist_tensor, int batch_count) {
     const float *xyz = xyz_tensor.data_ptr<float>();
     const float *new_xyz = new_xyz_tensor.data_ptr<float>();
     const uint64_t *new_grid_id = (uint64_t *)new_grid_id_tensor.data_ptr();
@@ -18,5 +18,5 @@ void linear_voxel_query_cuda(int m, int nsample, int len_hash, float grid_size,
     float *dist = dist_tensor.data_ptr<float>();
 
     linear_voxel_query_cuda_launcher(m, nsample, len_hash, grid_size, hashtable, xyz, new_xyz,
-                                     new_grid_id, new_offset, idx, dist);
+                                     new_grid_id, new_offset, batch_count, idx, dist);
 }

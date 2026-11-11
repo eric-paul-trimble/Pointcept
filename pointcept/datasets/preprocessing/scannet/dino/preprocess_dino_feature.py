@@ -12,8 +12,8 @@ import zlib
 import imageio
 import struct
 import numpy as np
-from pyg_lib import ops as pyg_ops
 from pathlib import Path
+from torch_geometric.utils import scatter
 
 
 class RGBDFrame:
@@ -260,9 +260,9 @@ def parsing_scene(
             grid_coord, cluster = torch.unique(
                 grid_coord, sorted=True, return_inverse=True, dim=0
             )
-            scene_coord = [pyg_ops.scatter(scene_coord, cluster, reduce="mean", dim=0)]
-            scene_feat = [pyg_ops.scatter(scene_feat, cluster, reduce="sum", dim=0)]
-            scene_count = [pyg_ops.scatter(scene_count, cluster, reduce="sum", dim=0)]
+            scene_coord = [scatter(scene_coord, cluster, dim=0, reduce="mean")]
+            scene_feat = [scatter(scene_feat, cluster, dim=0, reduce="sum")]
+            scene_count = [scatter(scene_count, cluster, dim=0, reduce="sum")]
 
         # color = color.reshape((-1, 3))[valid]
         # pcd = o3d.geometry.PointCloud()

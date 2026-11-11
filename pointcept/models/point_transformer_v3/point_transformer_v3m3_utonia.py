@@ -10,8 +10,8 @@ import torch
 import torch.nn as nn
 from torch.nn.init import trunc_normal_
 import spconv_triton.pytorch as spconv
-from pyg_lib import ops as pyg_ops
 from timm.layers import DropPath
+from torch_geometric.utils import segment
 import math
 
 try:
@@ -20,7 +20,7 @@ except ImportError:
     flash_attn = None
 
 from pointcept.models.builder import MODELS
-from pointcept.models.utils.misc import offset2bincount
+from pointcept.utils.offset import offset2bincount
 from pointcept.models.utils.structure import Point
 from pointcept.models.modules import PointModule, PointSequential
 
@@ -577,15 +577,15 @@ class GridPooling(PointModule):
         # head_indices of each cluster, for reduce attr e.g. code, batch
         head_indices = indices[idx_ptr[:-1]]
         point_dict = Dict(
-            feat=pyg_ops.segment_csr(
+            feat=segment(
                 self.proj(point.feat)[indices], idx_ptr, reduce=self.reduce
             ),
-            coord=pyg_ops.segment_csr(point.coord[indices], idx_ptr, reduce="mean"),
+            coord=segment(point.coord[indices], idx_ptr, reduce="mean"),
             grid_coord=grid_coord,
             batch=point.batch[head_indices],
         )
         if "origin_coord" in point.keys():
-            point_dict["origin_coord"] = pyg_ops.segment_csr(
+            point_dict["origin_coord"] = segment(
                 point.origin_coord[indices], idx_ptr, reduce="mean"
             )
         if "condition" in point.keys():
@@ -597,7 +597,7 @@ class GridPooling(PointModule):
         if "split" in point.keys():
             point_dict["split"] = point.split
         if "color" in point.keys():
-            point_dict["color"] = pyg_ops.segment_csr(
+            point_dict["color"] = segment(
                 point.color[indices], idx_ptr, reduce="mean"
             )
         if "grid_size" in point.keys():

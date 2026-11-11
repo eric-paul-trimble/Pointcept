@@ -1,5 +1,6 @@
 #include "cuda_utils.h"
 #include "linear_voxel_query_cuda_kernel.h"
+#include <c10/cuda/CUDAException.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/serialize/tensor.h>
 
@@ -39,13 +40,12 @@ __device__ void heap_sort(float *dist, int *idx, int k) {
     }
 }
 
-__device__ int get_batch_index(int idx, const int *offset) {
-    int i = 0;
-    while (true) {
+__device__ int get_batch_index(int idx, const int *offset, int batch_count) {
+    for (int i = 0; i < batch_count; ++i) {
         if (idx < offset[i])
             return i;
-        i++;
     }
+    return -1;
 }
 
 __device__ uint64_t murmur_hash(uint64_t k, int len_hash) {
@@ -57,19 +57,23 @@ __device__ uint64_t murmur_hash(uint64_t k, int len_hash) {
     return k & (len_hash - 1);
 }
 
-__device__ uint64_t hash_table_lookup(const uint64_t *hashtable, int len_hash, uint64_t key) {
+__device__ uint64_t hash_table_lookup(const uint64_t *hashtable, int len_hash,
+                                      uint64_t key) {
     uint64_t slot = murmur_hash(key, len_hash);
-    while (true) {
+    for (int probe = 0; probe < len_hash; ++probe) {
         if (hashtable[2 * slot] == key)
             return hashtable[2 * slot + 1];
         if (hashtable[2 * slot] == kEmpty)
             return kEmpty;
         slot = (slot + 1) & (len_hash - 1);
     }
+    return kEmpty;
 }
 
 __device__ uint64_t encode_voxel_id(int x, int y, int z, int batch) {
-    return ((uint64_t)batch << 54) | ((uint64_t)z << 36) | ((uint64_t)y << 18) | ((uint64_t)x << 0);
+    // Zero is reserved as the empty-bucket sentinel.
+    return 1ULL + (((uint64_t)batch << 54) | ((uint64_t)z << 36) |
+                   ((uint64_t)y << 18) | (uint64_t)x);
 }
 
 } // namespace voxel_query
@@ -79,7 +83,7 @@ __global__ void linear_voxel_query_cuda_kernel(int m, int nsample, int len_hash,
                                                const float *__restrict__ xyz,
                                                const float *__restrict__ new_xyz,
                                                const uint64_t *__restrict__ new_grid_id,
-                                               const int *__restrict__ new_offset,
+                                               const int *__restrict__ new_offset, int batch_count,
                                                int *__restrict__ idx, float *__restrict__ dist) {
 
     int pt_idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -91,7 +95,14 @@ __global__ void linear_voxel_query_cuda_kernel(int m, int nsample, int len_hash,
     float *out_dist = dist + pt_idx * nsample;
     uint64_t gid = new_grid_id[pt_idx];
 
-    int batch_idx = voxel_query::get_batch_index(pt_idx, new_offset);
+    int batch_idx = voxel_query::get_batch_index(pt_idx, new_offset, batch_count);
+    if (batch_idx < 0) {
+        for (int i = 0; i < nsample; ++i) {
+            out_idx[i] = -1;
+            out_dist[i] = 1e10f;
+        }
+        return;
+    }
     float qx = query[0], qy = query[1], qz = query[2];
 
     int vx = (gid >> 0) & ((1 << 18) - 1);
@@ -138,12 +149,14 @@ __global__ void linear_voxel_query_cuda_kernel(int m, int nsample, int len_hash,
 void linear_voxel_query_cuda_launcher(int m, int nsample, int len_hash, float grid_size,
                                       const uint64_t *hashtable, const float *xyz,
                                       const float *new_xyz, const uint64_t *new_grid_id,
-                                      const int *new_offset, int *idx, float *dist) {
+                                      const int *new_offset, int batch_count, int *idx,
+                                      float *dist) {
 
     dim3 blocks((m + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK);
     dim3 threads(THREADS_PER_BLOCK);
 
-    linear_voxel_query_cuda_kernel<<<blocks, threads, 0>>>(m, nsample, len_hash, grid_size,
-                                                           hashtable, xyz, new_xyz, new_grid_id,
-                                                           new_offset, idx, dist);
+    linear_voxel_query_cuda_kernel<<<blocks, threads, 0>>>(
+        m, nsample, len_hash, grid_size, hashtable, xyz, new_xyz, new_grid_id,
+        new_offset, batch_count, idx, dist);
+    C10_CUDA_KERNEL_LAUNCH_CHECK();
 }

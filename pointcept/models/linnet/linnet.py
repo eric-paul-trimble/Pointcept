@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 __all__ = ["LinNet"]
 
 
-def max_pool(features: torch.Tensor) -> torch.Tensor:
+def _max_pool(features: torch.Tensor) -> torch.Tensor:
     """Reduce the neighbourhood dimension with an export-friendly operator."""
     return torch.amax(features, dim=-2)
 
@@ -44,7 +44,8 @@ def xyz2grid_id(
         | ((batch & ((1 << 8) - 1)) << 54)
     )
 
-    return key
+    # Zero is reserved as the empty-bucket sentinel in the CUDA hash table.
+    return key + 1
 
 
 def counts2pos(counts: torch.Tensor) -> torch.Tensor:
@@ -207,7 +208,19 @@ class HashQuery(Function):
             new_offset.int(),
             idx,
             dist,
+            new_offset.numel(),
         )
+
+        invalid = (idx < 0) | (idx >= index.numel())
+        if invalid.any():
+            fallback_idx, _ = KNNQuery.apply(
+                nsample, xyz, offset, new_xyz, new_offset
+            )
+            inverse_index = torch.empty_like(index)
+            inverse_index[index] = torch.arange(
+                index.numel(), device=index.device, dtype=index.dtype
+            )
+            idx[invalid] = inverse_index[fallback_idx[invalid].long()].to(idx.dtype)
 
         return index[idx.long()], dist
 
@@ -393,6 +406,7 @@ class LinNet(nn.Module):
         decoder_nsample: int = 1,
         use_height: bool = False,
         interpolate: bool = False,
+        point_counts: Sequence[int] | None = None,
     ) -> None:
         super().__init__()
 
@@ -401,6 +415,7 @@ class LinNet(nn.Module):
         if len(radius) != len(encoder_depth) + 1:
             raise ValueError("radius must contain one more value than encoder_depth")
         self.grid_sizes = tuple(grid_sizes)
+        self.point_counts = None if point_counts is None else tuple(point_counts)
         self.use_height = use_height
         self.interpolate = interpolate
         self.emb = create_linear_block1d(in_channels + int(use_height), channels[0])

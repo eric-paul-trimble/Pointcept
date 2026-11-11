@@ -1,5 +1,6 @@
 #include "cuda_utils.h"
 #include "insert_hashtable_cuda_kernel.h"
+#include <c10/cuda/CUDAException.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/serialize/tensor.h>
 #include <vector>
@@ -25,7 +26,7 @@ __global__ void insert_hashtable_cuda_kernel(int m, int len_hash, uint64_t *hash
     uint64_t slot = hash(key, len_hash);
     unsigned long long kEmpty = 0;
 
-    while (true) {
+    for (int probe = 0; probe < len_hash; ++probe) {
         unsigned long long prev =
             atomicCAS((unsigned long long *)&hashtable[slot * 2], kEmpty, key);
         if (prev == kEmpty || prev == key) {
@@ -43,4 +44,5 @@ void insert_hashtable_cuda_launcher(int m, int len_hash, uint64_t *hashtable,
     dim3 threads(THREADS_PER_BLOCK);
 
     insert_hashtable_cuda_kernel<<<blocks, threads, 0>>>(m, len_hash, hashtable, keys, values);
+    C10_CUDA_KERNEL_LAUNCH_CHECK();
 }

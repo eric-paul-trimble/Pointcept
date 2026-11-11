@@ -1,4 +1,4 @@
-from .misc import (
+from pointcept.utils.offset import (
     offset2batch,
     offset2bincount,
     bincount2offset,

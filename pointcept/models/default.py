@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pyg_lib import ops as pyg_ops
+from torch_geometric.utils import segment
+from pyg_lib.ops import knn
 from peft import LoraConfig, get_peft_model
 from collections import OrderedDict
 
@@ -437,7 +438,7 @@ class DINOEnhancedSegmentor(nn.Module):
         dino_coord = input_dict["dino_coord"]
         dino_feat = input_dict["dino_feat"]
         dino_offset = input_dict["dino_offset"]
-        idx = pyg_ops.knn(
+        idx = knn(
             x=dino_coord,
             y=point.origin_coord,
             ptr_x=dino_offset,
@@ -510,9 +511,9 @@ class DefaultClassifier(nn.Module):
         # And after v1.5.0 feature aggregation for classification operated in classifier
         # TODO: remove this part after make all backbone return Point only.
         if isinstance(point, Point):
-            point.feat = pyg_ops.segment_csr(
-                src=point.feat,
-                indptr=nn.functional.pad(point.offset, (1, 0)),
+            point.feat = segment(
+                point.feat,
+                nn.functional.pad(point.offset, (1, 0)),
                 reduce="mean",
             )
             feat = point.feat

@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
 from torch_geometric.nn.pool import voxel_grid
-from pyg_lib import ops as pyg_ops
+from torch_geometric.utils import segment
 
 import einops
 from timm.layers import DropPath
@@ -305,7 +305,7 @@ class GridPool(nn.Module):
         batch = offset2batch(offset)
         feat = self.act(self.norm(self.fc(feat), condition, context))
         start = (
-            pyg_ops.segment_csr(
+            segment(
                 coord,
                 torch.cat([batch.new_zeros(1), torch.cumsum(batch.bincount(), dim=0)]),
                 reduce="min",
@@ -321,10 +321,10 @@ class GridPool(nn.Module):
         )
         _, sorted_cluster_indices = torch.sort(cluster)
         idx_ptr = torch.cat([counts.new_zeros(1), torch.cumsum(counts, dim=0)])
-        coord = pyg_ops.segment_csr(
+        coord = segment(
             coord[sorted_cluster_indices], idx_ptr, reduce="mean"
         )
-        feat = pyg_ops.segment_csr(feat[sorted_cluster_indices], idx_ptr, reduce="max")
+        feat = segment(feat[sorted_cluster_indices], idx_ptr, reduce="max")
         batch = batch[idx_ptr[:-1]]
         offset = batch2offset(batch)
         return [coord, feat, offset, condition, context], cluster

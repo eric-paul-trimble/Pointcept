@@ -13,9 +13,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
-from pyg_lib import ops as pyg_ops
+from torch_geometric.utils import scatter
 from pointcept.models.utils.structure import Point
-from pointcept.models.utils.misc import offset2bincount, batch2offset
+from pointcept.utils.offset import offset2bincount, batch2offset
 from pointcept.models.builder import MODELS, build_model
 
 from .loss import SGIFormerLoss
@@ -388,7 +388,7 @@ class SGIFormerDecoder(nn.Module):
 
         # get query
         score = seg_logits.softmax(dim=-1)[:, :-1]
-        sp_coord = pyg_ops.scatter(
+        sp_coord = scatter(
             point.coord + bias,
             point.sp_inverse,
             dim=0,
@@ -556,14 +556,14 @@ class SGIFormer(nn.Module):
                 inst_onehot_[inst_mask_] = torch.nn.functional.one_hot(
                     instance_[inst_mask_],
                 )
-                inst_sp_mask_ = pyg_ops.scatter(
+                inst_sp_mask_ = scatter(
                     inst_onehot_,
                     sp_inverse_,
                     reduce="mean",
                     dim=0,
                 ).T
                 inst_sp_mask_ = inst_sp_mask_ > 0.5
-                inst_cls_ = pyg_ops.scatter(
+                inst_cls_ = scatter(
                     segment_,
                     instance_,
                     reduce="max",
@@ -602,8 +602,8 @@ class SGIFormer(nn.Module):
             point.batch << 48 | point.superpoint,
             return_inverse=True,
         )
-        point["sp_feat"] = pyg_ops.scatter(point.feat, cluster, dim=0, reduce="mean")
-        point["sp_batch"] = pyg_ops.scatter(point.batch, cluster, dim=0, reduce="max")
+        point["sp_feat"] = scatter(point.feat, cluster, dim=0, reduce="mean")
+        point["sp_batch"] = scatter(point.batch, cluster, dim=0, reduce="max")
         point["sp_offset"] = batch2offset(point.sp_batch)
         point["sp_inverse"] = cluster
         pred = self.decoder(point)

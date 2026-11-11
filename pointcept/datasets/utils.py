@@ -11,8 +11,8 @@ import numpy as np
 import torch
 from torch.utils.data.dataloader import default_collate
 import torch.nn.functional as F
+from torch_geometric.utils import scatter
 
-from pyg_lib import ops as pyg_ops
 from pointcept.models.utils import offset2batch
 
 
@@ -246,7 +246,7 @@ def point_collate_fn(batch, mix_prob=0):
             batch_idx = offset2batch(batch["offset"])
             scaled_coord = batch["coord"] / batch["grid_size"][0]
             grid_coord = torch.floor(scaled_coord).to(torch.int64)
-            min_coord, _ = pyg_ops.scatter_min(grid_coord, batch_idx, dim=0)
+            min_coord = scatter(grid_coord, batch_idx, dim=0, reduce="min")
             batch["grid_coord"] = grid_coord - min_coord[batch_idx]
         offset_assets = [asset for asset in batch.keys() if "_offset" in asset]
         for offset_asset in offset_assets:

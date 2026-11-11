@@ -10,7 +10,7 @@ void linear_voxel_query_cuda(int m, int nsample, int len_hash, float grid_size,
                              at::Tensor hashtable_tensor, at::Tensor xyz_tensor,
                              at::Tensor new_xyz_tensor, at::Tensor new_grid_id_tensor,
                              at::Tensor new_offset_tensor, at::Tensor idx_tensor,
-                             at::Tensor dist_tensor);
+                             at::Tensor dist_tensor, int batch_count);
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +19,8 @@ extern "C" {
 void linear_voxel_query_cuda_launcher(int m, int nsample, int len_hash, float grid_size,
                                       const uint64_t *hashtable, const float *xyz,
                                       const float *new_xyz, const uint64_t *new_grid_id,
-                                      const int *new_offset, int *idx, float *dist);
+                                      const int *new_offset, int batch_count, int *idx,
+                                      float *dist);
 
 #ifdef __cplusplus
 }

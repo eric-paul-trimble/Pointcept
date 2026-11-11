@@ -23,9 +23,9 @@ except ImportError:
     KPConvLayer = None
     FastBatchNorm1d = None
 
-from pyg_lib import ops as pyg_ops
 from timm.layers import DropPath, trunc_normal_
 from torch_geometric.nn.pool import voxel_grid
+from torch_geometric.utils import softmax
 
 try:
     import pointops2.pointops as pointops
@@ -198,7 +198,7 @@ class WindowAttention(nn.Module):
             relative_position_bias = 0.0
 
         attn_flat += relative_position_bias
-        softmax_attn_flat = pyg_ops.scatter_softmax(src=attn_flat, index=index_0, dim=0)
+        softmax_attn_flat = softmax(attn_flat, index_0, dim=0)
 
         if self.rel_value:
             x = pointops.attention_step2_with_rel_pos_value_v2(

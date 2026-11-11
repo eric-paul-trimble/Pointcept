@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 import pyg_lib.ops as pyg_ops
 import torch
 
-from pointcept.models.utils.misc import batch2offset, offset2batch
+from pointcept.utils.offset import batch2offset, offset2batch
 
 
 def linearization_sampling(
